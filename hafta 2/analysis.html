@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hafta 2 - PDF Analiz</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif; padding:20px}
+      pre{white-space:pre-wrap;background:#f3f4f6;padding:12px;border-radius:6px}
+      .controls{margin-bottom:12px}
+    </style>
+  </head>
+  <body>
+    <h1>Hafta 2 — PDF Analiz</h1>
+    <div class="controls">
+      <button id="run">Analiz Et</button>
+    </div>
+    <h2>Özet</h2>
+    <div id="summary">(Henüz çalıştırılmadı)</div>
+    <h2>Ham Metin (kısaltılmış)</h2>
+    <pre id="text">(Henüz çalıştırılmadı)</pre>
+
+    <script src="/node_modules/pdfjs-dist/build/pdf.js"></script>
+    <script>
+      const url = './2.pdf'
+      const run = document.getElementById('run')
+      const summaryEl = document.getElementById('summary')
+      const textEl = document.getElementById('text')
+
+      run.addEventListener('click', async () => {
+        summaryEl.textContent = 'Analiz ediliyor...'
+        textEl.textContent = ''
+        try {
+          const loadingTask = window['pdfjsLib'].getDocument(url)
+          const pdf = await loadingTask.promise
+          let full = ''
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i)
+            const content = await page.getTextContent()
+            const strings = content.items.map(it => it.str)
+            full += strings.join(' ') + '\n\n'
+          }
+          const short = full.slice(0, 1600)
+          summaryEl.textContent = short.replace(/\n/g,' ') + (full.length>1600? '...':'')
+          textEl.textContent = full
+        } catch (e) {
+          summaryEl.textContent = 'Hata: ' + e.message
+        }
+      })
+    </script>
+  </body>
+</html>
