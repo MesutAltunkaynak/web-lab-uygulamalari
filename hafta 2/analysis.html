@@ -13,39 +13,86 @@
   <body>
     <h1>Hafta 2 — PDF Analiz</h1>
     <div class="controls">
-      <button id="run">Analiz Et</button>
+      <button id="run">Analiz Et (Dosyadan)</button>
+      <button id="run-pdf" title="Tarayıcıda PDF işleme, büyük dosyalarda yavaş olabilir">Analiz Et (PDF'den)</button>
     </div>
+
     <h2>Özet</h2>
     <div id="summary">(Henüz çalıştırılmadı)</div>
+    <h2>Tespit Edilen Teknolojiler</h2>
+    <div id="tech">(Henüz çalıştırılmadı)</div>
     <h2>Ham Metin (kısaltılmış)</h2>
     <pre id="text">(Henüz çalıştırılmadı)</pre>
 
-    <script src="/node_modules/pdfjs-dist/build/pdf.js"></script>
     <script>
-      const url = './2.pdf'
       const run = document.getElementById('run')
+      const runPdf = document.getElementById('run-pdf')
       const summaryEl = document.getElementById('summary')
       const textEl = document.getElementById('text')
+      const techEl = document.getElementById('tech')
+
+      async function detectTech(text){
+        const techList = ['React','ReactJS','Node.js','Node','TypeScript','Type Script','JavaScript','Vite','Express','Next.js','Tailwind','Bootstrap','MongoDB','MySQL','PostgreSQL','Docker','PDF.js','pdfjs','pdf-parse','pdfjs-dist','HTML','CSS','SASS']
+        const found = []
+        const lower = text.toLowerCase()
+        for(const t of techList){ if(lower.indexOf(t.toLowerCase())!==-1) found.push(t) }
+        return found
+      }
 
       run.addEventListener('click', async () => {
-        summaryEl.textContent = 'Analiz ediliyor...'
+        summaryEl.textContent = 'Dosyadan okunuyor...'
+        techEl.textContent = ''
         textEl.textContent = ''
         try {
-          const loadingTask = window['pdfjsLib'].getDocument(url)
+          // try technologies list first
+          const techResp = await fetch('./technologies.txt').catch(()=>null)
+          if(techResp && techResp.ok){
+            const techTxt = await techResp.text()
+            techEl.textContent = techTxt
+          }
+
+          const res = await fetch('./2_extracted.txt')
+          if(!res.ok) throw new Error('2_extracted.txt bulunamadı')
+          const text = await res.text()
+          const short = text.slice(0,1600)
+          summaryEl.textContent = short.replace(/\n/g,' ') + (text.length>1600? '...':'')
+          textEl.textContent = short + (text.length>1600? '\n\n(Çıkarılan metin çok uzun; tamamını repo içindeki `hafta 2/2_extracted.txt` dosyasında bulabilirsiniz.)':'')
+
+          if(!techResp || !techResp.ok){
+            const found = await detectTech(text)
+            techEl.textContent = found.length? found.join(', '): 'Tespit edilen teknoloji yok.'
+          }
+        } catch (e){
+          summaryEl.textContent = 'Hata: ' + e.message
+        }
+      })
+
+      // Optional: fall back to client-side PDF parsing if user chooses
+      runPdf.addEventListener('click', async () => {
+        summaryEl.textContent = 'PDF taranıyor (tarayıcı)...'
+        textEl.textContent = ''
+        techEl.textContent = ''
+        try {
+          // try to use pdfjs if available
+          if(!window.pdfjsLib){
+            summaryEl.textContent = 'PDF.js tarayıcı sürümü yüklenmedi. Önce dosyadan analiz önerilir.'
+            return
+          }
+          const loadingTask = window.pdfjsLib.getDocument('./2.pdf')
           const pdf = await loadingTask.promise
           let full = ''
-          for (let i = 1; i <= pdf.numPages; i++) {
+          for (let i = 1; i <= pdf.numPages; i++){
             const page = await pdf.getPage(i)
             const content = await page.getTextContent()
             const strings = content.items.map(it => it.str)
             full += strings.join(' ') + '\n\n'
           }
-          const short = full.slice(0, 1600)
+          const short = full.slice(0,1600)
           summaryEl.textContent = short.replace(/\n/g,' ') + (full.length>1600? '...':'')
-          textEl.textContent = full
-        } catch (e) {
-          summaryEl.textContent = 'Hata: ' + e.message
-        }
+          textEl.textContent = short
+          const found = await detectTech(full)
+          techEl.textContent = found.length? found.join(', '): 'Tespit edilen teknoloji yok.'
+        } catch(e){ summaryEl.textContent = 'Hata: ' + e.message }
       })
     </script>
   </body>
